@@ -14,7 +14,6 @@ import { EpisodesList } from "../components/episodes-list"
 import AnimatedLogo from "../components/logo"
 import { Cast } from "../components/cast"
 import Link from "next/link"
-import LatestReleases from "../components/LatestReleases"
 import Image from "next/image"
 
 interface Movie {
@@ -40,29 +39,106 @@ interface Episode {
   rating?: { aggregateRating: number; voteCount: number }
 }
 
+const CURRENT_YEAR = 2025
+const MIN_VOTES = 100
+
 export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // Search state
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedQuery] = useDebounce(searchQuery, 500)
   const [suggestions, setSuggestions] = useState<Movie[]>([])
   const [searchResults, setSearchResults] = useState<Movie[]>([])
   const [filteredResults, setFilteredResults] = useState<Movie[]>([])
   const [visibleCount, setVisibleCount] = useState(10)
-  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+
+  // Player state
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [selectedEpisode, setSelectedEpisode] = useState<{ season: number; episode: number } | null>(null)
   const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [tab, setTab] = useState<"episodes" | "cast">("episodes")
+
+  // Sorting/filter inputs for search results section
   const [sortOption, setSortOption] = useState("newest")
   const [minYear, setMinYear] = useState(1900)
   const [minRating, setMinRating] = useState(0)
-  const [tab, setTab] = useState<"episodes" | "cast">("episodes")
+
+  // Homepage sections (3 listy)
+  const [latest, setLatest] = useState<Movie[]>([])
+  const [rated, setRated] = useState<Movie[]>([])
+  const [watched, setWatched] = useState<Movie[]>([])
+  const [loadingSections, setLoadingSections] = useState(true)
+
   const cache = useRef<Record<string, Movie[]>>({})
   const currentYear = new Date().getFullYear()
 
+  // wspólny filtr (poster, votes>=100, year<=2025)
+  const allowTitle = (m: Movie) =>
+    (!!m.primaryImage?.url) &&
+    (!!m.rating?.voteCount && m.rating.voteCount >= MIN_VOTES) &&
+    (!m.startYear || m.startYear <= CURRENT_YEAR)
+
+  // ---------- Sekcje na homepage (limit 8) ----------
+  useEffect(() => {
+    let active = true
+    const fetchSection = async (qs: string) => {
+      const r = await fetch(`/api/discover/titles?${qs}`, { cache: "no-store" })
+      const ct = r.headers.get("content-type") || ""
+      const j = ct.includes("application/json") ? await r.json().catch(() => ({})) : {}
+      const arr = Array.isArray(j?.titles) ? (j.titles as Movie[]) : []
+      return arr.filter(allowTitle).slice(0, 8) // ⬅️ max 8
+    }
+    ;(async () => {
+      try {
+        setLoadingSections(true)
+        const [latestRaw, ratedRaw, watchedRaw] = await Promise.all([
+          fetchSection(
+            new URLSearchParams({
+              limit: "20", // pobierz trochę więcej i przytnij do 8 po filtrach
+              sortBy: "SORT_BY_RELEASE_DATE",
+              sortOrder: "DESC",
+              minVoteCount: String(MIN_VOTES), // serwer i tak wymusi >= 100
+              endYear: String(CURRENT_YEAR),
+            }).toString()
+          ),
+          fetchSection(
+            new URLSearchParams({
+              limit: "20",
+              sortBy: "SORT_BY_USER_RATING",
+              sortOrder: "DESC",
+              minVoteCount: String(MIN_VOTES),
+              endYear: String(CURRENT_YEAR),
+            }).toString()
+          ),
+          fetchSection(
+            new URLSearchParams({
+              limit: "20",
+              sortBy: "SORT_BY_USER_RATING_COUNT",
+              sortOrder: "DESC",
+              minVoteCount: String(MIN_VOTES),
+              endYear: String(CURRENT_YEAR),
+            }).toString()
+          ),
+        ])
+        if (!active) return
+        setLatest(latestRaw)
+        setRated(ratedRaw)
+        setWatched(watchedRaw)
+      } finally {
+        if (active) setLoadingSections(false)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // ---------- Episodes fetch when selectedMovie changes ----------
   useEffect(() => {
     const fetchEpisodes = async () => {
       if (!selectedMovie || selectedMovie.type !== "tvSeries") {
@@ -89,7 +165,7 @@ export default function Home() {
           )
         }
       } catch (error) {
-        console.error("[v0] Error fetching episodes:", error)
+        console.error("[home] Error fetching episodes:", error)
         setEpisodes([])
       } finally {
         setIsLoadingEpisodes(false)
@@ -98,6 +174,7 @@ export default function Home() {
     fetchEpisodes()
   }, [selectedMovie])
 
+  // ---------- Suggestions (debounced) ----------
   useEffect(() => {
     const fetchSuggestions = async () => {
       if (!debouncedQuery.trim()) return setSuggestions([])
@@ -108,7 +185,9 @@ export default function Home() {
       try {
         const res = await fetch(`/api/search?query=${encodeURIComponent(debouncedQuery)}`)
         const data = await res.json()
-        const filtered = (data.titles || []).filter((m: Movie) => m.startYear <= currentYear)
+        const filtered = (data.titles || [])
+          .filter((m: Movie) => m.startYear <= currentYear)
+          .filter(allowTitle) // ⬅️ votes>=100 etc.
         cache.current[debouncedQuery] = filtered
         setSuggestions(filtered)
       } catch (err) {
@@ -118,6 +197,7 @@ export default function Home() {
     fetchSuggestions()
   }, [debouncedQuery])
 
+  // ---------- Full search (only on Search button) ----------
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     if (!searchQuery.trim()) return
@@ -128,7 +208,9 @@ export default function Home() {
     try {
       const res = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`)
       const data = await res.json()
-      const filtered = (data.titles || []).filter((m: Movie) => m.startYear <= currentYear)
+      const filtered = (data.titles || [])
+        .filter((m: Movie) => m.startYear <= currentYear)
+        .filter(allowTitle) // ⬅️ votes>=100 etc.
       setSearchResults(filtered)
       setVisibleCount(10)
     } catch (err) {
@@ -138,10 +220,13 @@ export default function Home() {
     }
   }
 
+  // ---------- Sorting & filtering (applied to searchResults only) ----------
   useEffect(() => {
     let list = [...searchResults]
     list = list.filter(
-      (m) => (!m.startYear || m.startYear >= minYear) && (!m.rating?.aggregateRating || m.rating.aggregateRating >= minRating)
+      (m) =>
+        (!m.startYear || m.startYear >= minYear) &&
+        (!m.rating?.aggregateRating || m.rating.aggregateRating >= minRating)
     )
     switch (sortOption) {
       case "newest":
@@ -160,7 +245,12 @@ export default function Home() {
     setFilteredResults(list)
   }, [searchResults, sortOption, minYear, minRating])
 
-  const syncUrl = (movie: Movie | null, ep?: { season: number; episode: number } | null, method: "push" | "replace" = "replace") => {
+  // ---------- URL sync helper ----------
+  const syncUrl = (
+    movie: Movie | null,
+    ep?: { season: number; episode: number } | null,
+    method: "push" | "replace" = "replace"
+  ) => {
     const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "")
     if (movie?.id) params.set("title", movie.id)
     else params.delete("title")
@@ -206,7 +296,7 @@ export default function Home() {
     }, 100)
   }
 
-  // 🔹 URL sync — wczytanie po ID z /api/title + bezpieczny parsing
+  // ---------- URL → state (/?title=...) ----------
   useEffect(() => {
     const id = searchParams.get("title")
     const sRaw = searchParams.get("s")
@@ -232,19 +322,11 @@ export default function Home() {
     ;(async () => {
       try {
         setIsLoading(true)
-        const res = await fetch(`/api/title?id=${encodeURIComponent(id)}`, { cache: "no-store" })
-        const text = await res.text()
-
-        let data: any = null
-        try {
-          data = JSON.parse(text)
-        } catch {
-          console.error("Non-JSON response from /api/title:", text.slice(0, 300))
-          return
-        }
-
-        const found = (data?.title || null) as Movie | null
-        if (found) {
+        const res = await fetch(`/api/search?query=${encodeURIComponent(id)}`)
+        const data = await res.json()
+        const titles = (data.titles || []) as Movie[]
+        const found = titles.find((t) => t.id === id) || titles[0]
+        if (found && allowTitle(found)) {
           setSelectedMovie(found)
           if (found.type === "tvSeries" && Number.isFinite(s) && Number.isFinite(e)) {
             setSelectedEpisode({ season: s as number, episode: e as number })
@@ -255,11 +337,9 @@ export default function Home() {
           setTimeout(() => {
             document.getElementById("video-player")?.scrollIntoView({ behavior: "smooth", block: "center" })
           }, 50)
-        } else {
-          console.error("Title not found by id:", id, "payload:", data)
         }
       } catch (err) {
-        console.error("Failed to preselect from URL (by id):", err)
+        console.error("Failed to preselect from URL:", err)
       } finally {
         setIsLoading(false)
       }
@@ -267,16 +347,53 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams?.toString()])
 
+  // ---------- Sekcja wspólna ----------
+  const Section = ({
+    title,
+    moreHref,
+    items,
+  }: { title: string; moreHref: string; items: Movie[] }) => (
+    <section className="mt-10">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl md:text-2xl font-semibold">{title}</h2>
+        <Link href={moreHref}>
+          <Button variant="ghost" className="text-primary">See more →</Button>
+        </Link>
+      </div>
+
+      {loadingSections && items.length === 0 ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="aspect-[2/3] rounded-xl bg-muted animate-pulse" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No titles found.</p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {items.slice(0, 8).map((movie) => ( // ⬅️ max 8 wizualnie
+            <MovieCard key={movie.id} movie={movie} onSelect={handleMovieSelect} isSelected={false} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+
   return (
     <main className="min-h-screen bg-background flex flex-col">
       <div className="container mx-auto px-4 py-12 flex-1">
-        <div className="text-center my-4 flex flex-col items-center justify-center cursor-pointer" onClick={handleLogoClick}>
+        {/* Header */}
+        <div
+          className="text-center my-4 flex flex-col items-center justify-center cursor-pointer"
+          onClick={handleLogoClick}
+        >
           <AnimatedLogo width={384} />
           <p className="text-muted-foreground text-lg my-4">
             Watch Any Movie or Show with No Registration — 100% Free Forever 😍
           </p>
         </div>
 
+        {/* Search bar + suggestions */}
         <form onSubmit={handleSearch} className="max-w-2xl mx-auto mb-4 relative py-2">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -306,11 +423,17 @@ export default function Home() {
                 </button>
               )}
             </div>
-            <Button type="submit" size="lg" className="h-12 px-8 bg-primary hover:bg-primary/90" disabled={isLoading}>
+            <Button
+              type="submit"
+              size="lg"
+              className="h-12 px-8 bg-primary hover:bg-primary/90"
+              disabled={isLoading}
+            >
               {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : "Search"}
             </Button>
           </div>
 
+          {/* Suggestions */}
           {showSuggestions && suggestions.length > 0 && (
             <ul className="absolute z-50 bg-[#02020252] backdrop-blur-sm border border-border rounded-lg shadow-lg mt-2 w-full max-h-60 overflow-auto">
               {suggestions.slice(0, 6).map((movie) => (
@@ -320,7 +443,8 @@ export default function Home() {
                   className="px-4 py-2 hover:bg-[#02020291] cursor-pointer flex justify-between items-center"
                 >
                   <span>
-                    {movie.primaryTitle} <span className="text-xs text-muted-foreground">({movie.startYear})</span>
+                    {movie.primaryTitle}{" "}
+                    <span className="text-xs text-muted-foreground">({movie.startYear})</span>
                   </span>
                   {movie.rating && (
                     <span className="text-xs text-yellow-400">⭐ {movie.rating.aggregateRating.toFixed(1)}</span>
@@ -331,24 +455,33 @@ export default function Home() {
           )}
         </form>
 
+        {/* uBlock banner */}
         <div className="max-w-2xl mx-auto mb-8">
           <Link href="https://ublockorigin.com/" target="_blank" rel="noopener noreferrer">
             <div className="shadow-md shadow-red-900 flex items-center gap-4 rounded-2xl border border-red-800 bg-[#ff00001a] p-4 md:p-5">
               <div className="shrink-0">
-                <Image src="/UBlock_Origin.svg" alt="uBlock Origin" width={48} height={48} className="w-12 h-12 rounded-xl ring-1" priority={false} />
+                <Image
+                  src="/UBlock_Origin.svg"
+                  alt="uBlock Origin"
+                  width={48}
+                  height={48}
+                  className="w-12 h-12 rounded-xl ring-1"
+                  priority={false}
+                />
               </div>
               <div className="flex-1">
                 <h3 className="text-white font-semibold">
                   Hydra is better with <span className="text-[#ff0000]">uBlock Origin</span>
                 </h3>
-                <p className="text-sm text-muted-foreground">Block intrusive ads and trackers for faster, cleaner streaming.</p>
+                <p className="text-sm text-muted-foreground">
+                  Block intrusive ads and trackers for faster, cleaner streaming.
+                </p>
               </div>
             </div>
           </Link>
         </div>
 
-        {!selectedMovie && searchResults.length === 0 && <LatestReleases onSelect={handleMovieSelect} />}
-
+        {/* Player + tabs */}
         {selectedMovie && (
           <>
             <div id="video-player" className="mb-6">
@@ -388,6 +521,7 @@ export default function Home() {
           </>
         )}
 
+        {/* Wyniki wyszukiwania */}
         {!selectedMovie && filteredResults.length > 0 && (
           <div className="mb-12">
             <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
@@ -405,8 +539,21 @@ export default function Home() {
                     <SelectItem value="rating-low">Lowest Rating</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input type="number" placeholder="Min Year" value={minYear} onChange={(e) => setMinYear(Number(e.target.value))} className="w-28" />
-                <Input type="number" step="0.1" placeholder="Min Rating" value={minRating} onChange={(e) => setMinRating(Number(e.target.value))} className="w-28" />
+                <Input
+                  type="number"
+                  placeholder="Min Year"
+                  value={minYear}
+                  onChange={(e) => setMinYear(Number(e.target.value))}
+                  className="w-28"
+                />
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="Min Rating"
+                  value={minRating}
+                  onChange={(e) => setMinRating(Number(e.target.value))}
+                  className="w-28"
+                />
               </div>
             </div>
 
@@ -425,8 +572,18 @@ export default function Home() {
             )}
           </div>
         )}
+
+        {/* Sekcje homepage (gdy nie ma playera i nie ma wyników wyszukiwania) */}
+        {!selectedMovie && filteredResults.length === 0 && (
+          <>
+            <Section title="Latest Releases" moreHref="/discover?sort=RELEASE_DESC" items={latest} />
+            <Section title="Top Rated" moreHref="/discover?sort=RATING_DESC" items={rated} />
+            <Section title="Most Watched" moreHref="/discover?sort=COUNT_DESC" items={watched} />
+          </>
+        )}
       </div>
 
+      {/* Footer */}
       <footer className="py-8 border-t border-border text-center mt-auto">
         <p className="text-muted-foreground text-sm mb-3">Powered by</p>
         <Image
@@ -439,8 +596,7 @@ export default function Home() {
           priority={false}
         />
         <p className="text-muted-foreground text-xs mt-3">
-          © 2025 Hydra. All rights reserved.
-          <br />
+          © 2025 Hydra. All rights reserved.<br />
           Hydra uses the vidsrc.to API for streaming and imdbapi.dev for fetching info from IMDB database — we do not host or upload any videos.
         </p>
       </footer>
