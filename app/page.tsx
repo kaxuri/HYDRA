@@ -47,6 +47,7 @@ export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // Search state
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedQuery] = useDebounce(searchQuery, 500)
   const [suggestions, setSuggestions] = useState<Movie[]>([])
@@ -56,6 +57,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
 
+  // Player state
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [selectedEpisode, setSelectedEpisode] = useState<{ season: number; episode: number } | null>(null)
@@ -76,6 +78,7 @@ export default function Home() {
   const cache = useRef<Record<string, Movie[]>>({})
   const currentYear = new Date().getFullYear()
 
+  // wspólny filtr (poster, votes>=100, year<=2025)
   const allowTitle = (m: Movie) =>
     (!!m.primaryImage?.url) &&
     (!!m.rating?.voteCount && m.rating.voteCount >= MIN_VOTES) &&
@@ -378,7 +381,8 @@ export default function Home() {
   )
 
   return (
-    <main className="min-h-screen bg-background flex flex-col">
+
+    <section className="min-h-screen bg-background flex flex-col">
       <div className="container mx-auto px-4 py-12 flex-1">
         {/* Header */}
         <div
@@ -571,7 +575,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Sekcje homepage (gdy nie ma playera i nie ma wyników wyszukiwania) */}
         {!selectedMovie && filteredResults.length === 0 && (
           <>
             <Section title="Latest Releases" moreHref="/discover?sort=RELEASE_DESC" items={latest} />
@@ -580,29 +583,7 @@ export default function Home() {
           </>
         )}
       </div>
-
-<<<<<<< HEAD
-      <Footer onLogoClick={handleLogoClick} />
-
-=======
-      {/* Footer */}
-      <footer className="py-8 border-t border-border text-center mt-auto">
-        <p className="text-muted-foreground text-sm mb-3">Powered by</p>
-        <Image
-          src="/logo.svg"
-          alt="Powered Logo"
-          width={160}
-          height={40}
-          className="mx-auto w-40 h-auto opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
-          onClick={handleLogoClick}
-          priority={false}
-        />
-        <p className="text-muted-foreground text-xs mt-3">
-          © 2025 Hydra. All rights reserved.<br />
-          Hydra uses the vidsrc.to API for streaming and imdbapi.dev for fetching info from IMDB database — we do not host or upload any videos.
-        </p>
-      </footer>
->>>>>>> 504294e5d8bb71f1c5742e217d1c6ca351efadc2
-    </main>
+      <Footer />
+    </section>
   )
 }
