@@ -1,7 +1,7 @@
 
 import { Card } from "../../components/ui/card"
 import { Button } from "../../components/ui/button"
-import Image from "next/image"
+import Footer from "@/components/footer"
 import Link from "next/link"
 import { Shield, Film, Network, HelpCircle, AlertTriangle, ExternalLink } from "lucide-react"
 
@@ -152,22 +152,8 @@ export default function AboutPage() {
           </div>
         </section>
       </div>
-            <footer className="py-8 border-t border-border text-center mt-auto">
-              <p className="text-muted-foreground text-sm mb-3">Powered by</p>
-              <Image
-                src="/logo.svg"
-                alt="Powered Logo"
-                width={160}
-                height={40}
-                className="mx-auto w-40 h-auto opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
-                priority={false}
-              />
-              <p className="text-muted-foreground text-xs mt-3">
-                © 2025 Hydra. All rights reserved.
-                <br />
-                Hydra uses the vidsrc.to API for streaming and imdbapi.dev for fetching info from IMDB database — we do not host or upload any videos.
-              </p>
-            </footer>
+<Footer  />
+
     </main>
   )
 }

@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+<<<<<<< HEAD
+import Footer from "@/components/footer"
+=======
+>>>>>>> 504294e5d8bb71f1c5742e217d1c6ca351efadc2
 import { MovieCard } from "@/components/movie-card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -409,6 +413,11 @@ export default function DiscoverPage() {
           </aside>
         </div>
       </div>
+<<<<<<< HEAD
+      <Footer/>
+
+=======
+>>>>>>> 504294e5d8bb71f1c5742e217d1c6ca351efadc2
     </main>
   )
 }

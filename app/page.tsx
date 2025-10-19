@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Search, Loader2, SlidersHorizontal } from "lucide-react"
+import Footer from "@/components/footer"
 import { useDebounce } from "use-debounce"
 import { Input } from "../components/ui/input"
 import { Button } from "../components/ui/button"
@@ -46,7 +47,6 @@ export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Search state
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedQuery] = useDebounce(searchQuery, 500)
   const [suggestions, setSuggestions] = useState<Movie[]>([])
@@ -56,7 +56,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
 
-  // Player state
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [selectedEpisode, setSelectedEpisode] = useState<{ season: number; episode: number } | null>(null)
@@ -77,7 +76,6 @@ export default function Home() {
   const cache = useRef<Record<string, Movie[]>>({})
   const currentYear = new Date().getFullYear()
 
-  // wspólny filtr (poster, votes>=100, year<=2025)
   const allowTitle = (m: Movie) =>
     (!!m.primaryImage?.url) &&
     (!!m.rating?.voteCount && m.rating.voteCount >= MIN_VOTES) &&
@@ -583,6 +581,10 @@ export default function Home() {
         )}
       </div>
 
+<<<<<<< HEAD
+      <Footer onLogoClick={handleLogoClick} />
+
+=======
       {/* Footer */}
       <footer className="py-8 border-t border-border text-center mt-auto">
         <p className="text-muted-foreground text-sm mb-3">Powered by</p>
@@ -600,6 +602,7 @@ export default function Home() {
           Hydra uses the vidsrc.to API for streaming and imdbapi.dev for fetching info from IMDB database — we do not host or upload any videos.
         </p>
       </footer>
+>>>>>>> 504294e5d8bb71f1c5742e217d1c6ca351efadc2
     </main>
   )
 }

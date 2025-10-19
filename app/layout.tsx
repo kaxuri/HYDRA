@@ -25,7 +25,7 @@ export default function RootLayout({
           items={[
             { href: "/", label: "Home" },
             { href: "/about", label: "About" },
-            { href: "/support", label: "Support" },
+            { href: "https://donate.stripe.com/bJe7sN0o846xfP71GdgYU00", label: "Support" },
             { href: "/discover", label: "Discover" },
           ]}
           cta={{ label: "GitHub", href: "/pro" }}
