@@ -15,6 +15,7 @@ export async function GET(request: Request) {
 
     do {
       const url = new URL(`https://api.imdbapi.dev/titles/${encodeURIComponent(imdbId)}/credits`)
+      // jeśli API obsługuje pageSize — pobieramy większe paczki; jeśli nie, po prostu zignoruje
       url.searchParams.set("pageSize", "50")
       if (pageToken) {
         url.searchParams.set("pageToken", pageToken)

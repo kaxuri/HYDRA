@@ -11,9 +11,7 @@ import { Button } from "../components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
 import { MovieCard } from "../components/movie-card"
 import { VideoPlayer } from "../components/video-player"
-import { EpisodesList } from "../components/episodes-list"
 import AnimatedLogo from "../components/logo"
-import { Cast } from "../components/cast"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -495,31 +493,6 @@ export default function Home() {
                 isLoadingEpisodes={isLoadingEpisodes}
               />
             </div>
-
-            <div className="flex gap-2 items-center mb-6">
-              <Button variant={tab === "episodes" ? "default" : "ghost"} onClick={() => setTab("episodes")}>
-                Episodes
-              </Button>
-              <Button variant={tab === "cast" ? "default" : "ghost"} onClick={() => setTab("cast")}>
-                Cast
-              </Button>
-            </div>
-
-            {tab === "episodes" && (
-              <div className="mb-8">
-                <EpisodesList
-                  episodes={episodes as any}
-                  selectedEpisode={selectedEpisode}
-                  onEpisodeSelect={handleEpisodeSelect}
-                  isLoading={isLoadingEpisodes}
-                />
-              </div>
-            )}
-            {tab === "cast" && (
-              <div className="mb-8">
-                <Cast imdbId={selectedMovie.id} />
-              </div>
-            )}
           </>
         )}
 

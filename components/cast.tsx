@@ -38,8 +38,10 @@ export function Cast({ imdbId, className }: CastProps) {
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [total, setTotal] = useState<number | null>(null)
 
+  // cache: lista + nextPageToken + total per imdbId
   const cache = useRef<Record<string, CacheEntry>>({})
 
+  // deduplikacja po (name.id + category)
   const dedupe = (arr: CreditPerson[]) => {
     const seen = new Set<string>()
     const out: CreditPerson[] = []
@@ -53,6 +55,7 @@ export function Cast({ imdbId, className }: CastProps) {
     return out
   }
 
+  // próbujemy wyciągnąć łączną liczbę rekordów z różnych możliwych miejsc
   const extractTotal = (data: any): number | null => {
     const candidates = [
       data?.totalCredits,
@@ -67,6 +70,7 @@ export function Cast({ imdbId, className }: CastProps) {
     return null
   }
 
+  // 1 strona
   const fetchCreditsPage = async (token?: string | null) => {
     const base = `https://api.imdbapi.dev/titles/${encodeURIComponent(imdbId)}/credits`
     const url = token ? `${base}?pageToken=${encodeURIComponent(token)}` : base
@@ -92,6 +96,7 @@ export function Cast({ imdbId, className }: CastProps) {
     return { list, nextToken, totalCount }
   }
 
+  // init (pierwsza porcja)
   useEffect(() => {
     if (!imdbId) return
 
@@ -127,6 +132,7 @@ export function Cast({ imdbId, className }: CastProps) {
     run()
   }, [imdbId])
 
+  // kolejne porcje
   const loadMore = async () => {
     if (!nextPageToken || isLoadingMore) return
     setIsLoadingMore(true)
